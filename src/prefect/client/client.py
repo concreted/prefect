@@ -714,6 +714,8 @@ class Client:
         headers = headers or {}
         if token:
             headers["Authorization"] = "Bearer {}".format(token)
+        if token and prefect.config.backend == "server":
+            headers["Authorization"] = token
 
         if self.api_key and self._tenant_id:
             # Attach a tenant id to the headers if using an API key since it can be

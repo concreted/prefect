@@ -1,6 +1,7 @@
 import click
 import os
 import pendulum
+import base64
 from click.exceptions import Abort
 from tabulate import tabulate
 
@@ -77,11 +78,6 @@ def auth():
 
     \b    $ prefect auth create-key -n marvin --expire 2022-1-1
     """
-    if config.backend == "server":
-        raise click.UsageError(
-            "Prefect Server does not have authentication. Change your backend to "
-            "Prefect Cloud with `prefect backend cloud` to log in."
-        )
 
 
 @auth.command(hidden=True)
@@ -95,8 +91,18 @@ def auth():
     "-t",
     help="A Prefect Cloud API token. DEPRECATED.",
 )
+@click.option(
+    "--basic-auth",
+    "-a",
+    help="Basic auth credentials in format <username>:<password>"
+)
+@click.option(
+    "--bearer",
+    "-b",
+    help="Bearer token"
+)
 @handle_terminal_error
-def login(key, token):
+def login(key, token, basic_auth, bearer):
     """
     Login to Prefect Cloud
 
@@ -116,7 +122,7 @@ def login(key, token):
     This command has backwards compatibility support for API tokens, which are a
     deprecated form of authentication with Prefect Cloud
     """
-    if not key and not token:
+    if not key and not token and not basic_auth and not bearer:
         raise TerminalError("You must supply an API key or token!")
 
     if key and token:
@@ -125,6 +131,16 @@ def login(key, token):
     abort_on_config_api_key(
         "To log in with the CLI, remove the config key `prefect.cloud.api_key`"
     )
+
+    if basic_auth is not None:
+        b64_encoded = base64.standard_b64encode(basic_auth.encode()).decode()
+        client = Client(api_key=f'Basic {b64_encoded}', tenant_id=None)
+        client.save_auth_to_disk()
+        return
+    if bearer is not None:
+        client = Client(api_key=f'Bearer {bearer}', tenant_id=None)
+        client.save_auth_to_disk()
+        return
 
     # Attempt to treat the input like an API key even if it is passed as a token
     # Ignore any tenant id that has been previously set via login
